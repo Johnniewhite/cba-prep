@@ -103,17 +103,34 @@ docker-clean: ## Clean docker resources
 	$(DOCKER_COMPOSE) down -v
 	docker system prune -f
 
-dev: ## Start development environment
+dev: ## Start development environment with local database
 	@echo "${GREEN}Starting development environment...${NC}"
-	@if [ ! -f .env ]; then \
-		echo "${YELLOW}Creating .env file from .env.example...${NC}"; \
-		cp .env.example .env; \
+	@if [ ! -f .env.local ]; then \
+		echo "${YELLOW}.env.local not found. Using default local configuration.${NC}"; \
 	fi
 	@echo "${GREEN}Starting database and cache services...${NC}"
 	$(DOCKER_COMPOSE) up -d postgres-local redis-local
 	@echo "${GREEN}Waiting for services to be ready...${NC}"
-	@sleep 5
-	@echo "${GREEN}Running application...${NC}"
+	@sleep 10
+	@echo "${GREEN}Running migrations...${NC}"
+	@if command -v migrate >/dev/null 2>&1; then \
+		PGPASSWORD=cbaPREP2025 migrate -path migrations -database "postgresql://cba:cbaPREP2025@localhost:5433/cbalite?sslmode=disable" up || echo "${YELLOW}Migrations failed, but continuing...${NC}"; \
+	else \
+		echo "${YELLOW}migrate tool not installed. Run 'make install-tools' to install it.${NC}"; \
+	fi
+	@echo "${GREEN}Running application with local environment...${NC}"
+	@if [ -f .env.local ]; then \
+		cp .env.local .env; \
+	fi
+	go run $(MAIN_PATH)/*.go
+
+dev-remote: ## Start development environment with remote database
+	@echo "${GREEN}Starting development environment with remote database...${NC}"
+	@if [ ! -f .env ]; then \
+		echo "${YELLOW}Creating .env file from .env.example...${NC}"; \
+		cp .env.example .env; \
+	fi
+	@echo "${GREEN}Running application with remote database...${NC}"
 	go run $(MAIN_PATH)/*.go
 
 stop: ## Stop all services

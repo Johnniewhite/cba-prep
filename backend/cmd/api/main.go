@@ -62,20 +62,31 @@ func main() {
 		AuthMiddleware: authMiddleware,
 	}
 
-	router := app.setupRoutes()
-
 	corsMiddleware := middleware.NewCORSMiddleware(&cfg.CORS)
 	rateLimitMiddleware := middleware.NewRateLimitMiddleware(&cfg.RateLimit, redisCache)
 	loggingMiddleware := middleware.NewLoggingMiddleware(log)
 	recoveryMiddleware := middleware.NewRecoveryMiddleware(log)
 
-	handler := recoveryMiddleware(
+	// Create main router with WebSocket endpoint outside middleware
+	mainRouter := mux.NewRouter()
+	
+	// WebSocket endpoint - no middleware applied
+	mainRouter.HandleFunc("/api/v1/ws", app.websocketHandler)
+	
+	// API routes with full middleware stack
+	apiRouter := app.setupRoutes()
+	wrappedAPI := recoveryMiddleware(
 		loggingMiddleware(
 			corsMiddleware(
-				rateLimitMiddleware(router),
+				rateLimitMiddleware(apiRouter),
 			),
 		),
 	)
+	
+	// Mount API with middleware
+	mainRouter.PathPrefix("/").Handler(wrappedAPI)
+	
+	handler := mainRouter
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf("%s:%s", cfg.App.Host, cfg.App.Port),
@@ -171,7 +182,6 @@ func (app *Application) setupRoutes() *mux.Router {
 	protected.HandleFunc("/tasks/{taskId}/comments", app.createTaskCommentHandler).Methods("POST")
 	protected.HandleFunc("/tasks/{taskId}/comments", app.getTaskCommentsHandler).Methods("GET")
 
-	protected.HandleFunc("/ws", app.websocketHandler)
 
 	return r
 }

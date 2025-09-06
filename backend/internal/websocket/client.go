@@ -98,6 +98,8 @@ func (c *Client) handleMessage(msg *Message) {
 		c.handleTaskUpdate(msg)
 	case MessageTypeTyping:
 		c.handleTypingIndicator(msg)
+	case MessageTypeNotification:
+		c.handleNotification(msg)
 	default:
 		c.Hub.logger.Warnf("Unknown message type: %s", msg.Type)
 	}
@@ -118,6 +120,28 @@ func (c *Client) handleTaskUpdate(msg *Message) {
 func (c *Client) handleTypingIndicator(msg *Message) {
 	msg.Room = "team:" + c.TeamID
 	c.Hub.broadcast <- msg
+}
+
+func (c *Client) handleNotification(msg *Message) {
+	// Handle notification messages like join_room, leave_room, etc.
+	if data, ok := msg.Data.(map[string]interface{}); ok {
+		if action, exists := data["action"]; exists {
+			switch action {
+			case "join_room":
+				if room, ok := data["room"].(string); ok {
+					c.JoinRoom(room)
+					c.Hub.logger.Debugf("Client %s joined room %s via notification", c.ID, room)
+				}
+			case "leave_room":
+				if room, ok := data["room"].(string); ok {
+					c.LeaveRoom(room)
+					c.Hub.logger.Debugf("Client %s left room %s via notification", c.ID, room)
+				}
+			default:
+				c.Hub.logger.Debugf("Unknown notification action: %s", action)
+			}
+		}
+	}
 }
 
 func (c *Client) JoinRoom(room string) {

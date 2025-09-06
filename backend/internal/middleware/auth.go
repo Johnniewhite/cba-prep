@@ -91,6 +91,10 @@ func (a *AuthMiddleware) validateToken(tokenString string) (*Claims, error) {
 	return nil, jwt.ErrSignatureInvalid
 }
 
+func (a *AuthMiddleware) ValidateToken(tokenString string) (*Claims, error) {
+	return a.validateToken(tokenString)
+}
+
 func (a *AuthMiddleware) GenerateToken(userID, email, username string) (string, error) {
 	claims := &Claims{
 		UserID:   userID,
